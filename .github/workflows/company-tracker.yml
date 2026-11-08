@@ -1,0 +1,219 @@
+name: Company Tracker
+
+on:
+  schedule:
+    # GitHub runs scheduled jobs late; two tries early IST, the gate stops the second if the first got there.
+    - cron: '45 23 * * *'   # ~05:15 IST
+    - cron: '35 0 * * *'    # ~06:05 IST
+  workflow_dispatch: {}     # "Run workflow" button for a manual run
+
+concurrency:
+  group: company-tracker
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      go: ${{ steps.gate.outputs.go }}
+    env:
+      PAGE_URL: https://blue-ribbon-investment.github.io/company-tracker/
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set today's date (IST)
+        run: |
+          echo "DATE=$(TZ=Asia/Kolkata date +%F)" >> "$GITHUB_ENV"
+          echo "DATE_LABEL=$(TZ=Asia/Kolkata date '+%A %-d %B %Y')" >> "$GITHUB_ENV"
+
+      - name: Skip if today's edition is already published
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && curl -fsSL "$PAGE_URL?nocache=$(date +%s)" | grep -q "$DATE_LABEL"; then
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "Today's edition ($DATE_LABEL) is already published. Nothing to do."
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch the company directory and every company's data
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          python3 -I -X utf8 fetch_directory.py "runs/$DATE" || true
+          python3 -I -X utf8 fetch_companies.py "runs/$DATE" || true
+          mkdir -p "runs/$DATE/digests"
+
+      - name: Show today's signal
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          cat "runs/$DATE/raw/index.txt" 2>/dev/null || echo "(no index file; the fetch may have failed)"
+          test -f "runs/$DATE/triage.json" || { echo "triage.json missing — the fetch step failed; stopping." >&2; exit 1; }
+
+      - name: Upload the pre-fetched data
+        if: steps.gate.outputs.go == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracker-raw
+          path: runs/${{ env.DATE }}
+
+  synth:
+    needs: fetch
+    if: needs.fetch.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set today's date (IST)
+        run: echo "DATE=$(TZ=Asia/Kolkata date +%F)" >> "$GITHUB_ENV"
+
+      - name: Download the pre-fetched data
+        uses: actions/download-artifact@v4
+        with:
+          name: tracker-raw
+          path: runs/${{ env.DATE }}
+
+      - name: Is there anything to synthesize?
+        id: check
+        run: |
+          if python3 -c "import json;exit(0 if (json.load(open('runs/$DATE/triage.json')).get('groups') or []) else 1)" 2>/dev/null; then
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "No company has filings or notable news today; the day is all quiet lines."
+          fi
+
+      - name: Claude writes the day's digests
+        if: steps.check.outputs.has == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Write the company digests for today.
+
+            1. Read runs/${{ env.DATE }}/triage.json. It lists "groups"; each group has an "i" and "group" (space-separated company symbols, in the order to write).
+            2. For EACH company symbol, read runs/${{ env.DATE }}/raw/<SYM>.json (filings, news, competitor_news, industry_news, social) and its entry in watchlist.json.
+            3. Follow the exact section patterns in example_digests.html. For each group i, write runs/${{ env.DATE }}/digests/digest_i.html (use the number, e.g. digest_0.html) with one <section class="sec" data-sym="<SYM>"> block per company, in the group's symbol order.
+
+            Rules:
+            - Plain English, short sentences. No investment advice or price predictions.
+            - Every bullet links to its source using the URLs in the raw JSON. Never invent URLs; when a URL is empty, link the source publication name.
+            - Sections in order: Filings / Company news / Competitors / Industry / Social, each under an <h3>. When one has nothing, keep the <h3> and one line saying so ("None in the last 3 days."). Skip the Competitors section only when the company has no competitors listed in watchlist.json.
+            - At most 5 items per section, most important first; merge duplicates of the same story.
+            - Social is one line: the sentiment word, the 24-hour message count, and one recent message only if informative. StockTwits is noisy; when there is nothing, write "Chatter: neutral."
+            - End every company's section with <p class="src">Sources: ... &middot; fetched <time> IST.</p> using that raw JSON's fetched_ist.
+            - If a raw file is missing or a field is empty, say so in one line; never fill gaps from memory.
+
+            Do NOT commit, push, build, publish or email anything. Only write the digest files named in triage.json.
+            Finish with one line: which companies were written and anything that failed.
+          claude_args: |
+            --model claude-sonnet-5-5
+            --max-turns 120
+            --allowedTools "Bash,Read,Write,Edit,Glob,Grep"
+
+      - name: Check the digests were written
+        if: steps.check.outputs.has == 'true'
+        run: |
+          mkdir -p "runs/$DATE/digests"
+          python3 - <<EOF
+          import json, glob, os, sys
+          groups = json.load(open('runs/$DATE/triage.json'))['groups']
+          missing = [f"digest_{g['i']}.html" for g in groups if not glob.glob(f'runs/$DATE/digests/digest_{g["i"]}*.html')]
+          if missing:
+              sys.exit('missing digests: ' + ', '.join(missing))
+          print('all digests present:', len(groups))
+          EOF
+
+      - name: Upload the digests
+        if: steps.check.outputs.has == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests
+          path: runs/${{ env.DATE }}/digests
+
+  publish:
+    needs: [fetch, synth]
+    if: needs.fetch.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    env:
+      PAGE_URL: https://blue-ribbon-investment.github.io/company-tracker/
+      HAS_MAIL: ${{ secrets.GMAIL_APP_PASSWORD != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set today's date (IST)
+        run: |
+          echo "DATE=$(TZ=Asia/Kolkata date +%F)" >> "$GITHUB_ENV"
+          echo "DATE_LABEL=$(TZ=Asia/Kolkata date '+%A %-d %B %Y')" >> "$GITHUB_ENV"
+
+      - name: Download the pre-fetched data
+        uses: actions/download-artifact@v4
+        with:
+          name: tracker-raw
+          path: runs/${{ env.DATE }}
+
+      - name: Download the digests
+        if: needs.synth.result == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: digests
+          path: digests_in
+
+      - name: Merge, build the site and the email
+        run: |
+          mkdir -p "runs/$DATE/digests"
+          [ -d digests_in ] && cp digests_in/digest_*.html "runs/$DATE/digests/" 2>/dev/null || true
+          python3 -I -X utf8 build_companies_site.py "runs/$DATE" "$DATE_LABEL"
+          python3 -I -X utf8 build_site.py "runs/$DATE/content.html" site out "$DATE_LABEL" \
+            "$(TZ=Asia/Kolkata date '+%-I:%M %p')" "$PAGE_URL" "runs/$DATE/directory.json" watchlist.json
+
+      - name: Upload the website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Email the tracker
+        if: env.HAS_MAIL == 'true'
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: python3 -I -X utf8 send_email.py out/email.html "Company Tracker · $DATE_LABEL" "$PAGE_URL"
+
+  deploy:
+    needs: [publish]
+    if: needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  keepalive:
+    needs: publish
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Touch last_run.txt twice a month
+        run: |
+          DAY=$(TZ=Asia/Kolkata date +%d)
+          if [ "$DAY" = "01" ] || [ "$DAY" = "15" ]; then
+            TZ=Asia/Kolkata date '+%F %H:%M IST' > last_run.txt
+            git config user.name "company-tracker-bot"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add last_run.txt
+            git commit -m "Keep the daily schedule active" && git push || true

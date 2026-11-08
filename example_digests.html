@@ -1,0 +1,58 @@
+<!--
+  DIGEST PATTERN for the Claude step (copy these patterns, replace the words).
+  Each digest_N.html contains ONE <section class="sec" data-sym="..."> block PER COMPANY in its group,
+  companies in watchlist order. Only signal companies are in the groups (see runs/DATE/triage.json).
+  Every block: kicker (Signal), h2 with name + symbol, then in this order:
+    h3 Filings (list, none -> say so) / h3 Company news (list) / h3 Competitors (list) /
+    h3 Industry (list) / h3 Social (one line) / p.src
+  Rules: plain English, short sentences. Every bullet links to its source (the links in the
+  raw JSON, never invent URLs). Numbers and dates exactly as given. If a section has nothing,
+  write one line saying so ("No filings in the last 3 days.") rather than leaving it out.
+-->
+
+<section class="sec" data-sym="TATASTEEL">
+  <p class="kicker">Signal</p>
+  <h2>Tata Steel (TATASTEEL)</h2>
+  <p class="fine">Industry: Ferrous metals &middot; Competitors: SAIL, JSW Steel, JSW E-Steel</p>
+  <h3>Filings</h3>
+  <ul>
+    <li><b>Board meeting notice</b> 2026-11-06 &mdash; <a href="https://www.nseindia.com/...">NSE</a></li>
+    <li>No bulk/block deals reported.</li>
+  </ul>
+  <h3>Company news</h3>
+  <ul>
+    <li>Q2 net profit rose 21% to &rsquo;...&rsquo; on better steel prices; EBITDA margin improved to ... <a href="https://...">ET</a> (05 Nov)</li>
+  </ul>
+  <h3>Competitors</h3>
+  <ul>
+    <li><b>SAIL:</b> ... <a href="https://...">source</a></li>
+  </ul>
+  <h3>Industry</h3>
+  <ul>
+    <li>Steel: ... <a href="https://...">source</a></li>
+  </ul>
+  <h3>Social</h3>
+  <p>Chatter: <b>neutral</b> (212 messages, score &minus;0.11).</p>
+  <p class="src">Sources: NSE announcements &middot; Google News &middot; StockTwits &middot; fetched 2026-11-07 05:30 IST.</p>
+</section>
+
+<section class="sec" data-sym="NVDA">
+  <p class="kicker">Signal</p>
+  <h2>NVIDIA (NVDA)</h2>
+  <p class="fine">Industry: Semiconductors &middot; Competitors: AMD, INTC</p>
+  <h3>Filings</h3>
+  <ul>
+    <li><b>8-K</b> 2026-11-05 &mdash; <a href="https://www.sec.gov/Archives/...">SEC</a></li>
+  </ul>
+  <h3>Company news</h3>
+  <ul>
+    <li>... <a href="https://...">CNBC</a></li>
+  </ul>
+  <h3>Competitors</h3>
+  <ul><li><b>AMD:</b> ... <a href="https://...">source</a></li></ul>
+  <h3>Industry</h3>
+  <ul><li>Semiconductors: ... <a href="https://...">source</a></li></ul>
+  <h3>Social</h3>
+  <p>Chatter: <b>bullish</b> (1,840 messages, score 0.34).</p>
+  <p class="src">Sources: SEC EDGAR &middot; Google News &middot; StockTwits &middot; fetched 2026-11-07 05:30 IST.</p>
+</section>

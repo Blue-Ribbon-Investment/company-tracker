@@ -1,0 +1,245 @@
+<title>Company Tracker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;600;700&family=Libre+Franklin:wght@700;800&display=swap">
+<script>
+var DIR = {{DIRECTORY_JSON}};      /* all listed Indian stocks: {s: code, n: name, ex: exchange} */
+window.WATCH_SEED = {{WATCH_SEED_JSON}};  /* the tracked list shipped with this build */
+</script>
+<style>
+/* Same morning-paper look as the markets brief, plus a search/track bar in the masthead. */
+:root {
+  --bg: #EDF0F4;
+  --paper: #FFFFFF;
+  --ink: #18212F;
+  --muted: #586273;
+  --rule: #E1E6EC;
+  --soft: #F4F6F9;
+  --mast: #14284B;
+  --mast-ink: #FFFFFF;
+  --mast-sub: #C5D3E8;
+  --link: #1E4F9E;
+  --up: #12733A;
+  --down: #B3261E;
+  --note-bg: #FFF3D1;
+  --note-ink: #5A4300;
+  --f-display: "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0C1119; --paper: #131A25; --ink: #E3E8F0; --muted: #9AA5B6; --rule: #253043; --soft: #1A2331;
+    --mast: #0F1F3B; --mast-ink: #F1F4F9; --mast-sub: #A9BAD6; --link: #8DB4F0;
+    --up: #5FC58E; --down: #F08A80; --note-bg: #33280D; --note-ink: #F1D58C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0C1119; --paper: #131A25; --ink: #E3E8F0; --muted: #9AA5B6; --rule: #253043; --soft: #1A2331;
+  --mast: #0F1F3B; --mast-ink: #F1F4F9; --mast-sub: #A9BAD6; --link: #8DB4F0;
+  --up: #5FC58E; --down: #F08A80; --note-bg: #33280D; --note-ink: #F1D58C;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.6; }
+a { color: var(--link); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.mast { background: var(--mast); color: var(--mast-ink); }
+.mast .wrap { padding-block: 26px 22px; }
+.mast .kicker { color: var(--mast-sub); }
+.mast h1 { font-family: var(--f-display); font-weight: 800; font-size: clamp(1.6rem, 4.5vw, 2.2rem); line-height: 1.15; margin: 6px 0 4px; text-wrap: balance; }
+.mast .sub { margin: 0; color: var(--mast-sub); font-size: 0.9rem; }
+.searchbar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+.searchbar input { flex: 1; min-width: 190px; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.08); color: var(--mast-ink); font: 0.9rem var(--f-body); }
+.searchbar input::placeholder { color: var(--mast-sub); }
+.searchbar label { display: flex; gap: 6px; align-items: center; font-size: 0.78rem; color: var(--mast-sub); cursor: pointer; }
+.searchbar input[type="checkbox"] { accent-color: var(--mast-ink); }
+.addbar { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.addbar input { flex: 1; min-width: 190px; padding: 9px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.28); background: rgba(255,255,255,0.08); color: var(--mast-ink); font: 0.9rem var(--f-body); }
+.addbar input::placeholder { color: var(--mast-sub); }
+.addbar button { padding: 9px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.35); background: rgba(255,255,255,0.14); color: var(--mast-ink); font: 600 0.8rem var(--f-body); cursor: pointer; }
+.addbar button:hover { background: rgba(255,255,255,0.26); }
+.addbar .fine { color: var(--mast-sub); }
+.sugg { background: var(--paper); border: 1px solid var(--rule); border-radius: 10px; max-height: 220px; overflow-y: auto; margin-top: 8px; display: none; }
+.sugg.show { display: block; }
+.sugg div { padding: 9px 14px; border-bottom: 1px solid var(--rule); font-size: 0.9rem; cursor: pointer; display: flex; gap: 10px; justify-content: space-between; }
+.sugg div:last-child { border-bottom: 0; }
+.sugg div:hover { background: var(--soft); }
+.sugg .ex { color: var(--muted); font: 0.75rem var(--f-mono); }
+.sugg .none { cursor: default; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips .chip { background: var(--paper); border: 1px solid var(--rule); border-radius: 999px; padding: 4px 10px; font: 0.75rem var(--f-mono); color: var(--ink); display: inline-flex; gap: 8px; align-items: center; }
+.chips .chip button { border: 0; background: none; color: var(--down); font: 700 0.85rem var(--f-mono); cursor: pointer; padding: 0; }
+.notice { background: var(--note-bg); color: var(--note-ink); }
+.notice .wrap { padding-block: 10px; font-size: 0.88rem; }
+.notice p { margin: 0; }
+main.wrap { padding-block: 18px 32px; display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.sec { position: relative; background: var(--paper); border-radius: 10px; padding: 20px 22px 18px; min-width: 0; }
+@media (max-width: 520px) { .sec { padding: 18px 16px 16px; border-radius: 8px; } }
+.kicker { margin: 0; font-size: 0.7rem; letter-spacing: 0.13em; text-transform: uppercase; font-weight: 700; color: var(--muted); }
+.sec h2 { font-family: var(--f-display); font-weight: 800; font-size: 1.3rem; line-height: 1.25; margin: 2px 0 8px; text-wrap: balance; padding-right: 64px; }
+.sec h3 { font-size: 0.98rem; font-weight: 700; margin: 18px 0 4px; }
+.sec p { margin: 8px 0; max-width: 68ch; }
+.sec ul { margin: 6px 0 4px; padding-left: 20px; max-width: 68ch; }
+.sec li { margin: 0 0 8px; }
+.track { position: absolute; top: 16px; right: 16px; font: 600 0.72rem var(--f-mono); letter-spacing: 0.05em; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--rule); background: var(--paper); color: var(--muted); cursor: pointer; }
+.track.on { background: var(--mast); border-color: var(--mast); color: var(--mast-ink); }
+.fine { font-size: 0.8rem; color: var(--muted); }
+.src { margin: 10px 0 0; font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+.src a { color: var(--muted); }
+.links-box { background: var(--soft); border-radius: 8px; padding: 12px 14px; margin-top: 16px; }
+.links-box ul { margin-bottom: 0; }
+footer.wrap { padding-block: 0 36px; font-size: 0.78rem; color: var(--muted); }
+footer p { margin: 0 0 6px; max-width: 68ch; }
+</style>
+
+<header class="mast">
+  <div class="wrap">
+    <p class="kicker">Company Tracker &middot; filings, news and chatter</p>
+    <h1>{{EDITION_DATE}}</h1>
+    <p class="sub">Built {{BUILT_AT}} &middot; all times IST</p>
+    <div class="searchbar">
+      <input id="q" type="search" placeholder="Search today&rsquo;s scan&hellip;" autocomplete="off">
+      <label><input id="only" type="checkbox"> Tracked only</label>
+    </div>
+    <div class="addbar">
+      <input id="addq" type="search" placeholder="Add a company&hellip; (searches all listed Indian stocks)" autocomplete="off">
+      <button id="save" title="Copy your full company list">Save list</button>
+      <span id="savemsg" class="fine"></span>
+    </div>
+    <div id="sugg" class="sugg"></div>
+    <div id="chips" class="chips"></div>
+  </div>
+</header>
+{{NOTICE}}
+<main class="wrap">
+{{CONTENT}}
+</main>
+<footer class="wrap">
+  <p>Company cards show corporate filings (NSE for India, SEC for US), company, competitor and industry news from the last 24 hours, and StockTwits chatter. Every item links to its source; quiet days say so plainly. Tracked companies stay in your browser (this device), sorted to the top.</p>
+  <p>Read the day&rsquo;s <a href="https://blue-ribbon-investment.github.io/morning-markets-brief/">Morning Markets Brief</a>. Personal research, not investment advice.</p>
+</footer>
+
+<script>
+(function () {
+  var main = document.querySelector('main');
+  var cards = Array.prototype.slice.call(document.querySelectorAll('section.sec[data-sym]'));
+  var q = document.getElementById('q'), only = document.getElementById('only');
+  var addq = document.getElementById('addq'), sugg = document.getElementById('sugg'),
+      chips = document.getElementById('chips'), saveBtn = document.getElementById('save'),
+      savemsg = document.getElementById('savemsg');
+  var bySym = {};
+  cards.forEach(function (c) { bySym[c.getAttribute('data-sym')] = c; });
+
+  // --- the user's tracked list (browser) ---
+  var stored;
+  try { stored = JSON.parse(localStorage.getItem('ct_tracked') || 'null'); } catch (e) { stored = null; }
+  var tracked = stored ? stored.slice() : (window.WATCH_SEED || []);
+  function persist() { localStorage.setItem('ct_tracked', JSON.stringify(tracked)); }
+
+  // per-company Track button (on today's cards)
+  cards.forEach(function (c) {
+    var sym = c.getAttribute('data-sym');
+    var on = tracked.some(function (t) { return t.s === sym; });
+    var btn = document.createElement('button');
+    btn.className = 'track' + (on ? ' on' : '');
+    btn.textContent = on ? 'Tracked' : 'Track';
+    c.appendChild(btn);
+    btn.onclick = function () {
+      var i = tracked.findIndex(function (t) { return t.s === sym; });
+      if (i > -1) { tracked.splice(i, 1); btn.classList.remove('on'); btn.textContent = 'Track'; }
+      else { tracked.push({ s: sym, n: c.querySelector('h2').textContent.replace(/\(.*$/, '').trim() });
+             btn.classList.add('on'); btn.textContent = 'Tracked'; }
+      persist(); renderChips(); apply();
+    };
+  });
+
+  // --- add-a-company from the full directory ---
+  function renderChips() {
+    chips.innerHTML = '';
+    tracked.forEach(function (t) {
+      var chip = document.createElement('span');
+      chip.className = 'chip';
+      var label = document.createElement('span');
+      label.textContent = t.s + (t.n && t.n !== t.s ? ' · ' + t.n : '');
+      var x = document.createElement('button');
+      x.textContent = '×'; x.title = 'remove';
+      x.onclick = function () { tracked = tracked.filter(function (z) { return z.s !== t.s; }); persist(); renderChips(); apply(); };
+      chip.appendChild(label); chip.appendChild(x);
+      chips.appendChild(chip);
+    });
+  }
+
+  function showSugg() {
+    var t = addq.value.trim().toLowerCase();
+    if (t.length < 2) { sugg.classList.remove('show'); return; }
+    var hit = (window.DIR || []).filter(function (d) {
+      return d.s.toLowerCase().indexOf(t) > -1 || (d.n || '').toLowerCase().indexOf(t) > -1;
+    }).slice(0, 20);
+    sugg.innerHTML = '';
+    if (!hit.length) {
+      var nd = document.createElement('div');
+      nd.className = 'none';
+      nd.textContent = window.DIR && window.DIR.length
+        ? 'No match in the listed-stock directory.'
+        : 'The company directory is not available on this build (it is refreshed each morning). You can still paste a list to the builder.';
+      sugg.appendChild(nd);
+    }
+    hit.forEach(function (d) {
+      if (tracked.some(function (z) { return z.s === d.s; })) return;
+      var row = document.createElement('div');
+      var nm = document.createElement('span'); nm.textContent = d.n || d.s;
+      var ex = document.createElement('span'); ex.className = 'ex'; ex.textContent = d.s + ' · ' + (d.ex || '');
+      row.appendChild(nm); row.appendChild(ex);
+      row.onclick = function () {
+        tracked.push({ s: d.s, n: d.n }); persist(); renderChips();
+        addq.value = ''; sugg.classList.remove('show'); apply();
+        savemsg.textContent = 'Added ' + d.s + ' — press Save list when done.';
+      };
+      sugg.appendChild(row);
+    });
+    sugg.classList.add('show');
+  }
+  addq.addEventListener('input', showSugg);
+  addq.addEventListener('blur', function () { setTimeout(function () { sugg.classList.remove('show'); }, 150); });
+
+  // --- Save list: copy the full tracked list as lines of "CODE, Name" ---
+  saveBtn.onclick = function () {
+    var txt = tracked.map(function (t) { return t.s + ', ' + (t.n || t.s); }).join('\n');
+    function done(ok) { savemsg.textContent = ok
+      ? 'Copied ' + tracked.length + ' companies — save it in a text file and send it (or start the tracker with it).'
+      : 'Could not copy automatically; select and copy this: ' + txt.slice(0, 120) + '…'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function () { done(true); }, function () { done(false); });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(true); } catch (e) { done(false); }
+      document.body.removeChild(ta);
+    }
+  };
+
+  // --- filter today's cards ---
+  function apply() {
+    var t = q.value.trim().toLowerCase();
+    cards.forEach(function (c) {
+      var sym = c.getAttribute('data-sym');
+      var match = !t || sym.toLowerCase().indexOf(t) > -1 || c.textContent.toLowerCase().indexOf(t) > -1;
+      var trackedOnly = !only.checked || tracked.some(function (z) { return z.s === sym; });
+      c.style.display = (match && trackedOnly) ? '' : 'none';
+    });
+    cards.slice().sort(function (a, b) {
+      var at = tracked.some(function (z) { return z.s === a.getAttribute('data-sym'); });
+      var bt = tracked.some(function (z) { return z.s === b.getAttribute('data-sym'); });
+      return bt - at;
+    }).forEach(function (c) { main.appendChild(c); });
+  }
+  q.addEventListener('input', apply);
+  only.addEventListener('change', apply);
+  renderChips();
+  apply();
+})();
+</script>

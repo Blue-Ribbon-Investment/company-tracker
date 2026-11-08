@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Company Tracker · {{EDITION_DATE}}</title>
+<style>
+  body { margin: 0; padding: 0; background: #EDF0F4; color: #18212F; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.6; }
+  a { color: #1E4F9E; }
+  .outer { width: 100%; background: #EDF0F4; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 12px; }
+  .mast { background: #14284B; color: #FFFFFF; border-radius: 10px; padding: 20px 18px; }
+  .mast .kicker { color: #C5D3E8; }
+  .mast h1 { font-size: 24px; line-height: 1.2; margin: 6px 0 4px; color: #FFFFFF; }
+  .mast .sub { margin: 0; color: #C5D3E8; font-size: 13px; }
+  .mast a { color: #FFFFFF; }
+  .kicker { margin: 0; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 700; color: #586273; }
+  .sec { background: #FFFFFF; border-radius: 10px; padding: 18px; margin: 12px 0; }
+  .sec h2 { font-size: 20px; line-height: 1.25; margin: 2px 0 8px; color: #14284B; }
+  .sec h3 { font-size: 15px; margin: 16px 0 4px; color: #18212F; }
+  .sec p { margin: 8px 0; }
+  .sec ul { margin: 6px 0 4px; padding-left: 20px; }
+  .sec li { margin: 0 0 8px; }
+  .fine { font-size: 12px; color: #586273; }
+  .src { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: #586273; }
+  .src a { color: #586273; }
+  .links-box { background: #F4F6F9; border-radius: 8px; padding: 12px 14px; margin-top: 16px; }
+  .foot { font-size: 12px; color: #586273; padding: 4px 6px 20px; }
+</style>
+</head>
+<body>
+<div class="outer"><div class="wrap">
+  <div class="mast">
+    <p class="kicker">Company Tracker &middot; filings, news and chatter</p>
+    <h1>{{EDITION_DATE}}</h1>
+    <p class="sub">Built {{BUILT_AT}} &middot; all times IST &middot; <a href="{{PAGE_URL}}">Open on the web (search + track)</a></p>
+  </div>
+{{CONTENT}}
+  <div class="foot">
+    <p>Company, competitor and industry news: Google News feeds; filings: NSE (India) and SEC (US); social: StockTwits (noisy). Every item links to its source. Personal research brief, not investment advice.</p>
+    <p>Web version: <a href="{{PAGE_URL}}">{{PAGE_URL}}</a></p>
+  </div>
+</div></div>
+</body>
+</html>

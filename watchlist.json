@@ -1,0 +1,10 @@
+[
+  {"symbol": "VIVIDEL", "name": "Vivid Electromech", "market": "IN", "exchange": "NSE-SME", "industry": "Electromechanical / industrial components", "competitors": []},
+  {"symbol": "ARROWGREEN", "name": "Arrow Greentech", "market": "IN", "exchange": "NSE", "industry": "Electrical equipment / power", "competitors": []},
+  {"symbol": "JAINREC", "name": "Jain Resource Recycling", "market": "IN", "exchange": "NSE", "industry": "Resources / recycling", "competitors": []},
+  {"symbol": "VALIANT", "_confirm": true, "name": "Valiant Communication", "market": "IN", "exchange": "NSE", "industry": "Communications / electronics", "competitors": []},
+  {"symbol": "KMEW", "name": "Knowledge Marine", "market": "IN", "exchange": "NSE", "industry": "Marine / shipbuilding", "competitors": [
+      {"s": "COCHINSHIP", "n": "Cochin Shipyard"},
+      {"s": "VARSHIP", "n": "Vardhman Shipyard"}
+  ]}
+]
