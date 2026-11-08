@@ -69,12 +69,18 @@ WANT_US = [w for w in WATCH if w.get('market') == 'US']
 # ---------------- NSE filings + deals (cookie-primed, same recipe as the markets brief) ----------------
 nse_by_sym, nse_deals = {}, {}
 try:
-    curl('https://www.nseindia.com/', accept='text/html', cookie=True)
+    prime = curl('https://www.nseindia.com/', accept='text/html', cookie=True)
+    if '<html' in prime.lower() and 'json' not in prime[:200].lower():
+        errors.append(f'NSE prime: got a page, not JSON ({prime[:80]!r}) — walled off here')
     ref = 'https://www.nseindia.com/companies-listing/corporate-filings-annual-reports'
     frm = (NOW - datetime.timedelta(days=DAYS_BACK)).strftime('%Y-%m-%d')
     url = (f'https://www.nseindia.com/get-attachments?content-type=corpAnnouncement'
            f'&isSummary=true&page=0&from={frm}&to={DATE}')
-    data = getjson(url, referer=ref, cookie=True)
+    raw = curl(url, referer=ref, cookie=True)
+    try:
+        data = json.loads(raw)
+    except Exception:
+        raise RuntimeError(f'not JSON ({raw[:100]!r})')
     blob = (data or {}).get('data') or {}
     items = blob.get('corpAnnouncement') or blob.get('corporateAnnouncement') or []
     if isinstance(items, dict):
@@ -95,9 +101,56 @@ try:
         nse_by_sym[sym].sort(key=lambda z: z['date'], reverse=True)
         nse_by_sym[sym] = nse_by_sym[sym][:10]
     if not items:
-        errors.append('NSE: corpAnnouncement returned no items (structure may have changed; check runs/DATE/raw)')
+        errors.append(f'NSE filings: JSON ok but 0 rows in window ({frm}..{DATE}); keys: {list(blob.keys())[:6]}')
 except Exception as e:
     errors.append(f'NSE filings: {e}')
+
+# BSE corporate announcements (parallel filings source; keyed off an optional bse_code in the
+# watchlist). BSE's API is usually reachable where NSE is walled off. One call per day, last DAYS_BACK.
+bse_by_sym = {}
+bse_seen_day = {}
+for w in WATCH:
+    if w.get('market') != 'IN':
+        continue
+    bse_code = (w.get('bse_code') or '').strip()
+    sym = w['symbol'].upper()
+    if not bse_code:
+        continue
+    for back in range(DAYS_BACK + 1):
+        day = (NOW - datetime.timedelta(days=back)).strftime('%Y%m%d')
+        if bse_seen_day.get(day):
+            payload = bse_seen_day[day]
+        else:
+            try:
+                payload = getjson('https://api.bseindia.com/BseAPI/CorporateAnnouncements/GetAnnouncement/' + day,
+                                  user_agent=UA, referer='https://www.bseindia.com/')
+                bse_seen_day[day] = payload
+                if not isinstance(payload, list):
+                    errors.append(f'BSE {day}: expected a list, got {type(payload).__name__} '
+                                  f'(first: {str(payload)[:80]!r})')
+                    payload = []
+            except Exception as e:
+                errors.append(f'BSE {day}: {e}')
+                continue
+        for item in payload:
+            if str(item.get('symbol', '')).upper() != bse_code.upper():
+                continue
+            for a in (item.get('announcements') or []):
+                atype = a.get('announcementType')
+                atype = atype.get('label') if isinstance(atype, dict) else atype
+                title = re.sub(r'\s+', ' ', str(a.get('heading') or '')).strip()[:160]
+                link = a.get('announcementLink') or ''
+                if link and not link.startswith('http'):
+                    link = 'https://www.bseindia.com' + link
+                bse_by_sym.setdefault(sym, []).append({
+                    'date': str(a.get('dateOfAnnouncement') or day)[:16],
+                    'title': (f'[{atype}] ' if atype else '') + title,
+                    'url': link, 'source': 'BSE'})
+for sym in bse_by_sym:
+    bse_by_sym[sym].sort(key=lambda z: z['date'], reverse=True)
+    bse_by_sym[sym] = bse_by_sym[sym][:10]
+if any(w.get('bse_code') for w in WATCH if w.get('market') == 'IN') and not bse_by_sym and 'BSE' not in ' '.join(errors):
+    errors.append('BSE filings: no rows for the window')
 
 try:
     ref = 'https://www.nseindia.com/market-data/large-deals'
@@ -227,6 +280,7 @@ for w in WATCH:
     filings = []
     if w.get('market') == 'IN':
         filings = [{'source': 'NSE', **f} for f in nse_by_sym.get(sym, [])]
+        filings += [{'source': 'BSE', **f} for f in bse_by_sym.get(sym, [])]
         filings += [{'source': 'NSE deal', 'date': d.get('date'), 'title':
                      f"{d.get('kind')} deal {'buy' if d.get('side') == 'BUY' else 'sell'} Rs{d.get('value_cr')}cr by {d.get('client')}",
                      'url': 'https://www.nseindia.com/market-data/large-deals'} for d in nse_deals.get(sym, [])]

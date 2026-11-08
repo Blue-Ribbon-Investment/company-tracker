@@ -117,14 +117,7 @@ jobs:
         if: steps.check.outputs.has == 'true'
         run: |
           mkdir -p "runs/$DATE/digests"
-          python3 - <<EOF
-          import json, glob, os, sys
-          groups = json.load(open('runs/$DATE/triage.json'))['groups']
-          missing = [f"digest_{g['i']}.html" for g in groups if not glob.glob(f'runs/$DATE/digests/digest_{g["i"]}*.html')]
-          if missing:
-              sys.exit('missing digests: ' + ', '.join(missing))
-          print('all digests present:', len(groups))
-          EOF
+          python3 -c "import json,glob,sys; g=json.load(open('runs/${{ env.DATE }}/triage.json'))['groups']; m=[g2 for g2 in [x['i'] for x in g] if not glob.glob('runs/${{ env.DATE }}/digests/digest_' + g2 + '*.html')]; sys.exit('missing digests: ' + ', '.join(map(str,m)) if m else 'all digests present: ' + str(len(g)))"
 
       - name: Upload the digests
         if: steps.check.outputs.has == 'true'
@@ -217,3 +210,4 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add last_run.txt
             git commit -m "Keep the daily schedule active" && git push || true
+          fi
