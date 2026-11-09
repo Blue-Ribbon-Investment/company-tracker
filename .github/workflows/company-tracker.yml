@@ -119,7 +119,7 @@ jobs:
         if: steps.check.outputs.has == 'true'
         run: |
           mkdir -p "runs/$DATE/digests"
-          python3 -c "import json,glob,sys; g=json.load(open('runs/${{ env.DATE }}/triage.json'))['groups']; m=[g2 for g2 in [x['i'] for x in g] if not glob.glob('runs/${{ env.DATE }}/digests/digest_' + g2 + '*.html')]; sys.exit('missing digests: ' + ', '.join(map(str,m)) if m else 'all digests present: ' + str(len(g)))"
+          python3 -c "import json,glob,sys; g=json.load(open('runs/${{ env.DATE }}/triage.json'))['groups']; m=[str(x['i']) for x in g if not glob.glob('runs/${{ env.DATE }}/digests/digest_' + str(x['i']) + '*.html')]; sys.exit(('missing digests: ' + ', '.join(m)) if m else ('all digests present: ' + str(len(g))))"
 
       - name: Upload the digests
         if: steps.check.outputs.has == 'true'
