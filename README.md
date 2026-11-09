@@ -42,8 +42,7 @@ python -I -X utf8 build_site.py runs/DATE/content.html site out "Sunday 8 Novemb
 
 ## Secrets (GitHub → Settings → Secrets and variables → Actions)
 
-All four are the same ones the markets brief uses (account-level, so both repos share them):
-`CLAUDE_CODE_OAUTH_TOKEN`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_TO`.
+`ANTHROPIC_API_KEY` (the AI step — a plain Anthropic API key; bills to that key's usage, not to the Claude desktop OAuth login the markets brief uses) plus `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_TO` (the email step, same values as the markets brief).
 
 ## Known limits
 
